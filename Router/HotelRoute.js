@@ -3,7 +3,7 @@ const hotelController = require('../Controller/HotelController')
 const router = express.Router()
 const auth = require("../Auth/auth")
 
-router.get("/allhotels", auth, hotelController.allhotel)
+router.get("/allhotels",  hotelController.allhotel)
 router.get("/alluserhotels", hotelController.allUserhotel)
 router.get("/viewhotel", auth, hotelController.viewHotelDetails);
 router.post("/hotelrequest", auth, hotelController.hotelRequest)
