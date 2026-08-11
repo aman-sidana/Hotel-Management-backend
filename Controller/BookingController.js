@@ -205,59 +205,7 @@ exports.getAdminBookings = async (req, res) => {
   }
 };
 
-exports.approveBooking = async (req, res) => {
-  try {
-    const { id } = req.query;
 
-    const booking = await Booking.findByIdAndUpdate(
-      id,
-      {
-        status: "approved",
-      },
-      {
-        new: true,
-      }
-    );
-
-    res.status(200).json({
-      success: true,
-      message: "Booking Approved.",
-      booking,
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: error.message,
-    });
-  }
-};
-
-exports.rejectBooking = async (req, res) => {
-  try {
-    const { id } = req.query;
-
-    const booking = await Booking.findByIdAndUpdate(
-      id,
-      {
-        status: "rejected",
-      },
-      {
-        new: true,
-      }
-    );
-
-    res.status(200).json({
-      success: true,
-      message: "Booking Rejected.",
-      booking,
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: error.message,
-    });
-  }
-};
 
 exports.checkIn = async (req, res) => {
   try {

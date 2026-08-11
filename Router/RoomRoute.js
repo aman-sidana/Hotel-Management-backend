@@ -3,7 +3,7 @@ const router = express.Router();
 const roomController = require("../Controller/RoomController");
 const auth = require("../Auth/auth")
 
-router.get("/getallrooms", auth, roomController.getAllRooms);
+router.get("/getallrooms", roomController.getAllRooms);
 router.get("/getalluserrooms", roomController.getAllUserRooms);
 
 router.get("/viewbyone", roomController.viewdetails);
