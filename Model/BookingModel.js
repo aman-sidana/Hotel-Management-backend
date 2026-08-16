@@ -8,12 +8,6 @@ const BookingSchema = new mongoose.Schema(
       required: true,
     },
 
-    adminId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "admin",
-      required: true,
-    },
-
     hotelId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "HotelDetails",

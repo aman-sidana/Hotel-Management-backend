@@ -72,7 +72,6 @@ exports.SignUp = async (req, res) => {
 exports.login = async (req, res) => {
     try {
         const { email, password } = req.body;
-        // console.log(`<<<<<<signup>>>>>>>>>>>>`, req.body)
 
         if (!(email && password)) {
             return res.status(400).json({
@@ -174,7 +173,6 @@ exports.forgetpassword = async (req, res) => {
         }
 
         const user = await UserModel.findOne({ email });
-        // console.log(`>>>>>>user`, user)
 
         if (!user) {
             return res.status(404).json({

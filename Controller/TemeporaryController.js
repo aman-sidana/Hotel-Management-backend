@@ -1,7 +1,6 @@
 const TemporaryModel = require("../Model/TemporaryModel");
 const RoomModel = require("../Model/RoomModel");
 
-// Create or update a 10-minute temporary room hold
 exports.temporarydata = async (req, res) => {
   try {
     const { roomId, userId } = req.body;
@@ -21,7 +20,6 @@ exports.temporarydata = async (req, res) => {
       });
     }
 
-    // Check if another user has an active 10-minute hold on this room
     const existingHold = await TemporaryModel.findOne({
       roomId,
       userId: { $ne: userId },
@@ -42,10 +40,8 @@ exports.temporarydata = async (req, res) => {
       }
     }
 
-    // Remove any previous holds by the same user for this room
     await TemporaryModel.deleteMany({ roomId, userId });
 
-    // Create a new 10-minute temporary hold
     const result = await TemporaryModel.create({
       roomId,
       userId,
@@ -67,7 +63,6 @@ exports.temporarydata = async (req, res) => {
   }
 };
 
-// Get temporary hold status for a room
 exports.temporaryget = async (req, res) => {
   try {
     const { roomId } = req.query;
@@ -93,7 +88,6 @@ exports.temporaryget = async (req, res) => {
   }
 };
 
-// Release a temporary hold when user leaves/cancels/completes booking
 exports.temporaryrelease = async (req, res) => {
   try {
     const { roomId, userId } = req.body;
@@ -120,7 +114,6 @@ exports.temporaryrelease = async (req, res) => {
   }
 };
 
-// Get all active holds across all rooms (for room availability badges)
 exports.getAllActiveHolds = async (req, res) => {
   try {
     const holds = await TemporaryModel.find({}).select("roomId userId createdAt");

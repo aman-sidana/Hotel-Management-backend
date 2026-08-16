@@ -1,43 +1,11 @@
 const RoomModel = require("../Model/RoomModel");
 const { uploadImage } = require("../Utils/Cloudinary");
-
 const { generatePdfTable } = require("../Utils/Pdf");
 
+// Add Room
 exports.addRoom = async (req, res) => {
   try {
-    const {
-      hotelId,
-      roomNumber,
-      floor,
-      roomType,
-      pricePerNight,
-      capacity,
-      kingSizeBed,
-      queenSizeBed,
-      singleBed,
-      doubleBed,
-      ac,
-      cooler,
-      attachedBathroom,
-      bathtub,
-      geyser,
-      tv,
-      wifi,
-      telephone,
-      miniFridge,
-      microwave,
-      electricKettle,
-      sofa,
-      diningTable,
-      wardrobe,
-      balcony,
-      locker,
-      smokeDetector,
-      fireExtinguisher,
-      roomService,
-      laundryService,
-      housekeeping,
-    } = req.body;
+    const { hotelId, roomNumber, floor, roomType, pricePerNight, capacity, beds, amenities } = req.body;
 
     if (!hotelId || !roomNumber || !pricePerNight) {
       return res.status(400).json({
@@ -54,52 +22,25 @@ exports.addRoom = async (req, res) => {
 
     let imageUrls = [];
     if (req.files && req.files.images) {
-      const filesToUpload = Array.isArray(req.files.images)
-        ? req.files.images
-        : [req.files.images];
+      const filesToUpload = Array.isArray(req.files.images) ? req.files.images : [req.files.images];
       const uploadResults = await uploadImage(filesToUpload);
       imageUrls = uploadResults.map((result) => result.secure_url);
     }
 
-    const toBool = (val) => String(val) === "true";
+    // Parse array if sent as JSON string from FormData
+    const parsedBeds = typeof beds === "string" ? JSON.parse(beds) : beds || [];
+    const parsedAmenities = typeof amenities === "string" ? JSON.parse(amenities) : amenities || [];
 
     const newRoom = await RoomModel.create({
       hotelId,
       roomNumber: Number(roomNumber),
-      floor: floor ? Number(floor) : 1,
+      floor: Number(floor || 1),
       roomType: roomType || "Single",
       pricePerNight: Number(pricePerNight),
-      capacity: capacity ? Number(capacity) : 2,
+      capacity: Number(capacity || 2),
       images: imageUrls,
-
-      kingSizeBed: toBool(kingSizeBed),
-      queenSizeBed: toBool(queenSizeBed),
-      singleBed: toBool(singleBed),
-      doubleBed: toBool(doubleBed),
-
-      ac: toBool(ac),
-      cooler: toBool(cooler),
-      attachedBathroom: toBool(attachedBathroom),
-      bathtub: toBool(bathtub),
-      geyser: toBool(geyser),
-      tv: toBool(tv),
-      wifi: toBool(wifi),
-      telephone: toBool(telephone),
-      miniFridge: toBool(miniFridge),
-      microwave: toBool(microwave),
-      electricKettle: toBool(electricKettle),
-      sofa: toBool(sofa),
-      diningTable: toBool(diningTable),
-      wardrobe: toBool(wardrobe),
-      balcony: toBool(balcony),
-      locker: toBool(locker),
-      smokeDetector: toBool(smokeDetector),
-      fireExtinguisher: toBool(fireExtinguisher),
-
-      roomService: toBool(roomService),
-      laundryService: toBool(laundryService),
-      housekeeping: toBool(housekeeping),
-
+      beds: parsedBeds,
+      amenities: parsedAmenities,
       isActive: true,
       isAvailable: true,
     });
@@ -114,6 +55,59 @@ exports.addRoom = async (req, res) => {
   }
 };
 
+// Admin Add Room
+exports.adminAddRoom = async (req, res) => {
+  try {
+    const { hotelId, roomNumber, floor, roomType, pricePerNight, capacity, beds, amenities } = req.body;
+
+    if (!hotelId || !roomNumber || !pricePerNight) {
+      return res.status(400).json({
+        message: "Hotel ID, Room Number, and Price Per Night are mandatory.",
+      });
+    }
+
+    const roomExists = await RoomModel.findOne({ hotelId, roomNumber: Number(roomNumber) });
+    if (roomExists) {
+      return res.status(400).json({
+        message: `Room number ${roomNumber} already exists in this hotel.`,
+      });
+    }
+
+    let imageUrls = [];
+    if (req.files && req.files.images) {
+      const filesToUpload = Array.isArray(req.files.images) ? req.files.images : [req.files.images];
+      const uploadResults = await uploadImage(filesToUpload);
+      imageUrls = uploadResults.map((result) => result.secure_url);
+    }
+
+    const parsedBeds = typeof beds === "string" ? JSON.parse(beds) : beds || [];
+    const parsedAmenities = typeof amenities === "string" ? JSON.parse(amenities) : amenities || [];
+
+    const room = await RoomModel.create({
+      hotelId,
+      roomNumber: Number(roomNumber),
+      floor: Number(floor || 1),
+      roomType: roomType || "Single",
+      pricePerNight: Number(pricePerNight),
+      capacity: Number(capacity || 2),
+      images: imageUrls,
+      beds: parsedBeds,
+      amenities: parsedAmenities,
+      isActive: true,
+      isAvailable: true,
+    });
+
+    return res.status(201).json({
+      message: "Room created and added to hotel configuration successfully!",
+      room,
+    });
+  } catch (error) {
+    console.error("Admin Add Room Error:", error);
+    return res.status(500).json({ message: "Internal Server Error" });
+  }
+};
+
+// Get All Rooms (Admin / General)
 exports.getAllRooms = async (req, res) => {
   try {
     const rooms = await RoomModel.find().populate(
@@ -127,37 +121,10 @@ exports.getAllRooms = async (req, res) => {
   }
 };
 
+// Get All User Rooms with Filter & Search & Pagination
 exports.getAllUserRooms = async (req, res) => {
   try {
-    const {
-      hotelId,
-      search = "",
-      sort = "default",
-      page = 1,
-      limit = 6,
-
-      // Bed Type
-      kingSizeBed,
-      queenSizeBed,
-      singleBed,
-      doubleBed,
-
-      // Amenities
-      ac,
-      wifi,
-      tv,
-      geyser,
-      miniFridge,
-      bathtub,
-      balcony,
-      sofa,
-      locker,
-
-      // Services
-      roomService,
-      laundryService,
-      housekeeping,
-    } = req.query;
+    const { hotelId, search = "", sort = "default", page = 1, limit = 6, beds, amenities } = req.query;
 
     const pageNum = Math.max(1, parseInt(page) || 1);
     const limitNum = Math.max(1, parseInt(limit) || 6);
@@ -168,54 +135,26 @@ exports.getAllUserRooms = async (req, res) => {
       isAvailable: true,
     };
 
-    if (hotelId) {
-      filter.hotelId = hotelId;
-    }
+    if (hotelId) filter.hotelId = hotelId;
 
-    // Search
     if (search) {
-      const searchConditions = [
-        {
-          roomType: {
-            $regex: search,
-            $options: "i",
-          },
-        },
-      ];
       const searchNum = parseInt(search, 10);
-      if (!isNaN(searchNum)) {
-        searchConditions.push({ roomNumber: searchNum });
-      }
-      filter.$or = searchConditions;
+      filter.$or = [
+        { roomType: { $regex: search, $options: "i" } },
+        ...(!isNaN(searchNum) ? [{ roomNumber: searchNum }] : []),
+      ];
     }
 
-    // Boolean Filters
-    const booleanFields = [
-      "kingSizeBed",
-      "queenSizeBed",
-      "singleBed",
-      "doubleBed",
-      "ac",
-      "wifi",
-      "tv",
-      "geyser",
-      "miniFridge",
-      "bathtub",
-      "balcony",
-      "sofa",
-      "locker",
-      "roomService",
-      "laundryService",
-      "housekeeping",
-    ];
+    if (beds) {
+      const bedsList = typeof beds === "string" ? beds.split(",") : beds;
+      filter.beds = { $in: bedsList };
+    }
 
-    booleanFields.forEach((field) => {
-      if (req.query[field] === "true") {
-        filter[field] = true;
-      }
-    });
+    if (amenities) {
+      const amenitiesList = typeof amenities === "string" ? amenities.split(",") : amenities;
+      filter.amenities = { $in: amenitiesList };
+    }
 
-    // Sorting
     const sortOptions = {
       default: { createdAt: -1 },
       priceLowHigh: { pricePerNight: 1 },
@@ -228,10 +167,7 @@ exports.getAllUserRooms = async (req, res) => {
     const totalPages = Math.ceil(totalRooms / limitNum) || 1;
 
     const rooms = await RoomModel.find(filter)
-      .populate(
-        "hotelId",
-        "hotelname hotelemail hotelphone ownername"
-      )
+      .populate("hotelId", "hotelname hotelemail hotelphone ownername")
       .sort(sortOptions[sort] || sortOptions.default)
       .skip(skip)
       .limit(limitNum);
@@ -246,14 +182,11 @@ exports.getAllUserRooms = async (req, res) => {
     });
   } catch (error) {
     console.log(error);
-
-    return res.status(500).json({
-      success: false,
-      message: "Internal Server Error",
-    });
+    return res.status(500).json({ success: false, message: "Internal Server Error" });
   }
 };
 
+// Update Room Details
 exports.updateRoom = async (req, res) => {
   try {
     const { id } = req.query;
@@ -263,33 +196,20 @@ exports.updateRoom = async (req, res) => {
 
     let updateData = { ...req.body };
 
-    const booleanFields = [
-      "kingSizeBed", "queenSizeBed", "singleBed", "doubleBed",
-      "ac", "cooler", "attachedBathroom", "bathtub", "geyser", "tv",
-      "wifi", "telephone", "miniFridge", "microwave", "electricKettle",
-      "sofa", "diningTable", "wardrobe", "balcony", "locker",
-      "smokeDetector", "fireExtinguisher", "roomService",
-      "laundryService", "housekeeping", "isAvailable", "isActive"
-    ];
-
-    booleanFields.forEach((field) => {
-      if (updateData[field] !== undefined) {
-        updateData[field] = String(updateData[field]) === "true";
-      }
-    });
+    if (typeof updateData.beds === "string") {
+      updateData.beds = JSON.parse(updateData.beds);
+    }
+    if (typeof updateData.amenities === "string") {
+      updateData.amenities = JSON.parse(updateData.amenities);
+    }
 
     if (req.files && req.files.images) {
-      const filesToUpload = Array.isArray(req.files.images)
-        ? req.files.images
-        : [req.files.images];
+      const filesToUpload = Array.isArray(req.files.images) ? req.files.images : [req.files.images];
       const uploadResults = await uploadImage(filesToUpload);
       updateData.images = uploadResults.map((result) => result.secure_url);
     }
 
-    const updatedRoom = await RoomModel.findByIdAndUpdate(id, updateData, {
-      new: true,
-    });
-
+    const updatedRoom = await RoomModel.findByIdAndUpdate(id, updateData, { new: true });
     if (!updatedRoom) {
       return res.status(404).json({ message: "Room not found." });
     }
@@ -304,38 +224,33 @@ exports.updateRoom = async (req, res) => {
   }
 };
 
+// Soft Delete Room
 exports.softDeleteRoom = async (req, res) => {
   try {
     const { id } = req.query;
     if (!id) return res.status(400).json({ message: "Room ID is required." });
 
-    const room = await RoomModel.findByIdAndUpdate(
-      id,
-      { isActive: false },
-      { new: true }
-    );
+    const room = await RoomModel.findByIdAndUpdate(id, { isActive: false }, { new: true });
     return res.status(200).json({ message: "Room deactivated successfully.", room });
   } catch (error) {
     return res.status(500).json({ message: "Internal Server Error" });
   }
 };
 
+// Restore Room
 exports.restoreRoom = async (req, res) => {
   try {
     const { id } = req.query;
     if (!id) return res.status(400).json({ message: "Room ID is required." });
 
-    const room = await RoomModel.findByIdAndUpdate(
-      id,
-      { isActive: true },
-      { new: true }
-    );
+    const room = await RoomModel.findByIdAndUpdate(id, { isActive: true }, { new: true });
     return res.status(200).json({ message: "Room activated successfully.", room });
   } catch (error) {
     return res.status(500).json({ message: "Internal Server Error" });
   }
 };
 
+// Permanently Delete Room
 exports.deleteRoom = async (req, res) => {
   try {
     const { id } = req.query;
@@ -347,155 +262,28 @@ exports.deleteRoom = async (req, res) => {
     return res.status(500).json({ message: "Internal Server Error" });
   }
 };
-exports.adminAddRoom = async (req, res) => {
-  try {
-    const {
-      hotelId,
-      roomNumber,
-      floor,
-      roomType,
-      pricePerNight,
-      capacity,
-      kingSizeBed,
-      queenSizeBed,
-      singleBed,
-      doubleBed,
-      ac,
-      cooler,
-      attachedBathroom,
-      bathtub,
-      geyser,
-      tv,
-      wifi,
-      telephone,
-      miniFridge,
-      microwave,
-      electricKettle,
-      sofa,
-      diningTable,
-      wardrobe,
-      balcony,
-      locker,
-      smokeDetector,
-      fireExtinguisher,
-      roomService,
-      laundryService,
-      housekeeping,
-    } = req.body;
 
-    if (!hotelId || !roomNumber || !pricePerNight) {
-      return res.status(400).json({
-
-        message: "Hotel ID, Room Number, and Price Per Night are mandatory.",
-      });
-    }
-
-    const roomExists = await RoomModel.findOne({
-      hotelId,
-      roomNumber: Number(roomNumber),
-    });
-
-    if (roomExists) {
-      return res.status(400).json({
-        message: `Room number ${roomNumber} already exists in this hotel.`,
-      });
-    }
-
-    let imageUrls = [];
-    if (req.files && req.files.images) {
-      const filesToUpload = Array.isArray(req.files.images)
-        ? req.files.images
-        : [req.files.images];
-      const uploadResults = await uploadImage(filesToUpload);
-      imageUrls = uploadResults.map((result) => result.secure_url);
-    }
-
-    const toBool = (val) => String(val) === "true";
-
-    const room = await RoomModel.create({
-      hotelId,
-      roomNumber: Number(roomNumber),
-      floor: floor ? Number(floor) : 1,
-      roomType: roomType || "Single",
-      pricePerNight: Number(pricePerNight),
-      capacity: capacity ? Number(capacity) : 2,
-      images: imageUrls,
-      kingSizeBed: toBool(kingSizeBed),
-      queenSizeBed: toBool(queenSizeBed),
-      singleBed: toBool(singleBed),
-      doubleBed: toBool(doubleBed),
-      ac: toBool(ac),
-      cooler: toBool(cooler),
-      attachedBathroom: toBool(attachedBathroom),
-      bathtub: toBool(bathtub),
-      geyser: toBool(geyser),
-      tv: toBool(tv),
-      wifi: toBool(wifi),
-      telephone: toBool(telephone),
-      miniFridge: toBool(miniFridge),
-      microwave: toBool(microwave),
-      electricKettle: toBool(electricKettle),
-      sofa: toBool(sofa),
-      diningTable: toBool(diningTable),
-      wardrobe: toBool(wardrobe),
-      balcony: toBool(balcony),
-      locker: toBool(locker),
-      smokeDetector: toBool(smokeDetector),
-      fireExtinguisher: toBool(fireExtinguisher),
-
-      roomService: toBool(roomService),
-      laundryService: toBool(laundryService),
-      housekeeping: toBool(housekeeping),
-
-      isActive: true,
-      isAvailable: true,
-    });
-
-    return res.status(201).json({
-
-      message: "Room created and added to hotel configuration successfully!",
-      room,
-    });
-  } catch (error) {
-    console.error("Admin Add Room Error:", error);
-    return res.status(500).json({
-      message: "Internal Server Error",
-    });
-  }
-};
-
+// View Details of Single Room
 exports.viewdetails = async (req, res) => {
   try {
     const { id } = req.query;
-
-    if (!id) {
-      return res.status(400).json({
-        message: "Room ID is required.",
-      });
-    }
+    if (!id) return res.status(400).json({ message: "Room ID is required." });
 
     const room = await RoomModel.findById(id).populate(
       "hotelId",
       "hotelname hotelemail hotelphone ownername"
     );
 
-    if (!room) {
-      return res.status(404).json({
-        message: "Room not found.",
-      });
-    }
+    if (!room) return res.status(404).json({ message: "Room not found." });
 
     return res.status(200).json(room);
   } catch (error) {
     console.error("View Room Details Error:", error);
-
-    return res.status(500).json({
-      message: "Internal Server Error",
-    });
+    return res.status(500).json({ message: "Internal Server Error" });
   }
 };
 
-
+// Download Room Inventory Report PDF
 exports.downloadRoomPdf = async (req, res) => {
   try {
     const { hotelId, search = "", status } = req.query;
@@ -531,7 +319,6 @@ exports.downloadRoomPdf = async (req, res) => {
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", "attachment; filename=Rooms_Report.pdf");
     res.send(pdfBuffer);
-
   } catch (error) {
     console.log(error);
     res.status(500).json({ message: "Unable to generate PDF" });

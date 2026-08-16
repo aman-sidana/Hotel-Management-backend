@@ -4,13 +4,12 @@ const RoomSchema = new mongoose.Schema(
     {
         hotelId: {
             type: mongoose.Schema.Types.ObjectId,
-            ref: "HotelDetails", 
+            ref: "HotelDetails",
             required: true,
         },
         roomNumber: {
             type: Number,
             required: true,
-           
         },
         floor: {
             type: Number,
@@ -29,42 +28,14 @@ const RoomSchema = new mongoose.Schema(
             type: Number,
             default: 2,
         },
-        // Images uploaded to Cloudinary
         images: {
             type: [String],
             default: [],
         },
 
-        kingSizeBed: { type: Boolean, default: false },
-        queenSizeBed: { type: Boolean, default: false },
-        singleBed: { type: Boolean, default: false },
-        doubleBed: { type: Boolean, default: false },
+        beds: [{ type: String, enum: ["king", "queen", "single", "double"] }],
+        amenities: [{ type: String }],
 
-        ac: { type: Boolean, default: false },
-        cooler: { type: Boolean, default: false },
-        attachedBathroom: { type: Boolean, default: false },
-        bathtub: { type: Boolean, default: false },
-        geyser: { type: Boolean, default: false },
-        tv: { type: Boolean, default: false },
-        wifi: { type: Boolean, default: false },
-        telephone: { type: Boolean, default: false },
-        miniFridge: { type: Boolean, default: false },
-        microwave: { type: Boolean, default: false },
-        electricKettle: { type: Boolean, default: false },
-        sofa: { type: Boolean, default: false },
-        diningTable: { type: Boolean, default: false },
-        wardrobe: { type: Boolean, default: false },
-        balcony: { type: Boolean, default: false },
-        locker: { type: Boolean, default: false },
-        smokeDetector: { type: Boolean, default: false },
-        fireExtinguisher: { type: Boolean, default: false },
-
-        // Services
-        roomService: { type: Boolean, default: false },
-        laundryService: { type: Boolean, default: false },
-        housekeeping: { type: Boolean, default: false },
-
-        // Status flags
         isAvailable: { type: Boolean, default: true },
         isActive: { type: Boolean, default: true },
     },
@@ -73,7 +44,5 @@ const RoomSchema = new mongoose.Schema(
         versionKey: false,
     }
 );
-
-RoomSchema.index({ hotelId: 1, roomNumber: 1 }, { unique: true });
 
 module.exports = mongoose.model("RoomDetails", RoomSchema);

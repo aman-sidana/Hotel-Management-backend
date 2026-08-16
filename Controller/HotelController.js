@@ -10,6 +10,7 @@ const XLSX = require("xlsx");
 const { v4: uuidv4 } = require("uuid");
 const bcrypt = require('bcrypt');
 const { uploadImage } = require("../Utils/Cloudinary");
+const { generatePdfTable } = require("../Utils/Pdf");
 
 exports.superAdminAddHotel = async (req, res) => {
     try {
@@ -17,8 +18,6 @@ exports.superAdminAddHotel = async (req, res) => {
             hotelname,
             hotelphone,
             hotelemail,
-            stateId,
-            districtId,
             cityId,
             hoteladdress,
             totalrooms,
@@ -64,8 +63,6 @@ exports.superAdminAddHotel = async (req, res) => {
             hotelname,
             hotelphone,
             hotelemail,
-            stateId: stateId || null,
-            districtId: districtId || null,
             cityId: cityId || null,
             hoteladdress,
             totalrooms,
@@ -200,9 +197,15 @@ exports.allhotel = async (req, res) => {
             const totalPages = Math.ceil(totalHotels / limitNum) || 1;
 
             const hotels = await Hotelmodel.find(filter)
-                .populate("stateId", "stateName")
-                .populate("districtId", "districtName")
-                .populate("cityId", "cityName")
+                .populate({
+                    path: "cityId",
+                    populate: {
+                        path: "districtId",
+                        populate: {
+                            path: "stateId"
+                        }
+                    }
+                })
                 .populate("adminId", "adminname email")
                 .sort(sorting)
                 .skip(skip)
@@ -226,9 +229,15 @@ exports.allhotel = async (req, res) => {
         }
 
         const rawResult = await Hotelmodel.find(filter)
-            .populate("stateId", "stateName")
-            .populate("districtId", "districtName")
-            .populate("cityId", "cityName")
+            .populate({
+                path: "cityId",
+                populate: {
+                    path: "districtId",
+                    populate: {
+                        path: "stateId"
+                    }
+                }
+            })
             .populate("adminId", "adminname email")
             .sort(sorting);
 
@@ -301,23 +310,8 @@ exports.allUserhotel = async (req, res) => {
 
             {
                 $lookup: {
-                    from: "states",
-                    localField: "stateId",
-                    foreignField: "_id",
-                    as: "stateId"
-                }
-            },
-            {
-                $unwind: {
-                    path: "$stateId",
-                    preserveNullAndEmptyArrays: true
-                }
-            },
-
-            {
-                $lookup: {
                     from: "districts",
-                    localField: "districtId",
+                    localField: "cityId.districtId",
                     foreignField: "_id",
                     as: "districtId"
                 }
@@ -325,6 +319,21 @@ exports.allUserhotel = async (req, res) => {
             {
                 $unwind: {
                     path: "$districtId",
+                    preserveNullAndEmptyArrays: true
+                }
+            },
+
+            {
+                $lookup: {
+                    from: "states",
+                    localField: "districtId.stateId",
+                    foreignField: "_id",
+                    as: "stateId"
+                }
+            },
+            {
+                $unwind: {
+                    path: "$stateId",
                     preserveNullAndEmptyArrays: true
                 }
             },
@@ -455,7 +464,6 @@ exports.allUserhotel = async (req, res) => {
             $sort: sorting
         });
 
-        // Facet for pagination and total count
         pipeline.push({
             $facet: {
                 totalData: [{ $count: "count" }],
@@ -493,144 +501,6 @@ exports.allUserhotel = async (req, res) => {
 
         return res.status(500).json({
             message: "Internal Server Error"
-        });
-    }
-};
-
-exports.approveRequest = async (req, res) => {
-    try {
-        const { id } = req.query;
-
-        if (!id) {
-            return res.status(400).json({
-                message: "Hotel Id not Found"
-            });
-        }
-
-        const result = await Hotelmodel.findByIdAndUpdate(
-            id, { status: "approved" }, { new: true }
-        );
-
-        if (!result) {
-            return res.status(404).json({
-                message: "Hotel not Found"
-            });
-        }
-
-        const existsUser = await UserModel.findOne({
-            email: result.hotelemail
-        });
-
-        if (existsUser) {
-            return res.status(400).json({
-                message: "User already exists"
-            });
-        }
-
-        const randomPassword = uuidv4().substring(0, 10);
-        const hashedPassword = await bcrypt.hash(randomPassword, 10);
-
-        const useradd = await UserModel.create({
-            name: result.hotelname,
-            email: result.hotelemail,
-            password: hashedPassword,
-            phone: result.hotelphone,
-            role: "hotel"
-        });
-
-        await info(
-            result.hotelemail,
-            "Hotel Registration Approved",
-            `
-            <div style="font-family: Arial, sans-serif;">
-                <h2>Congratulations! 🎉</h2>
-                <p>Dear Partners,</p>
-                <p>Your hotel registration request has been <span style="color:green;"><strong>APPROVED</strong></span>.</p>
-                <hr>
-                <h3>Login Credentials</h3>
-                <p><strong>Hotel Name:</strong> ${result.hotelname}</p>
-                <p><strong>Email:</strong> ${result.hotelemail}</p>
-                <p><strong>Password:</strong> ${randomPassword}</p>
-                <br>
-                <p>Please login using the above credentials and change your password after your first login.</p>
-                <br>
-                <p>Regards,</p>
-                <h4>Hotel Management Team</h4>
-            </div>
-            `
-        );
-
-        return res.status(200).json({
-            message: "Hotel Approved Successfully",
-            hotel: result,
-            user: useradd
-        });
-
-    } catch (error) {
-        console.log(error);
-        return res.status(500).json({
-            message: "Internal Server Error"
-        });
-    }
-};
-
-exports.rejectRequest = async (req, res) => {
-    try {
-        const { id } = req.query;
-        if (!id) {
-            return res.status(400).json({
-                message: "Hotel ID is required",
-            });
-        }
-        const { description } = req.body;
-        if (!description) {
-            return res.status(400).json({
-                message: "description is required"
-            });
-        }
-
-        const result = await Hotelmodel.findByIdAndUpdate(
-            id,
-            {
-                status: "rejected",
-                description: description || "No reason provided."
-            },
-            { new: true }
-        );
-
-        if (!result) {
-            return res.status(404).json({
-                message: "Hotel not found",
-            });
-        }
-
-        await info(
-            result.hotelemail,
-            "Hotel Registration Rejected",
-            `
-            <div style="font-family: Arial, sans-serif;">
-                <h2>Hotel Registration Update</h2>
-                <p>Dear Partners,</p>
-                <p>We regret to inform you that your hotel registration request for <strong>${result.hotelname || "your hotel"}</strong> has been <span style="color:red;"><b>REJECTED</b></span>.</p>
-                <hr style="border: 1px solid #eee; margin: 20px 0;">
-                <h3>Reason for Rejection:</h3>
-                <blockquote style="background: #fdf2f2; border-left: 5px solid #e74c3c; padding: 15px; margin: 0; border-radius: 4px;">
-                    ${result.description}
-                </blockquote>
-                <hr style="border: 1px solid #eee; margin: 20px 0;">
-                <p>If you wish to update your details and resubmit, you can use your Request ID on our website: <strong>${result.hotelRequestId || "N/A"}</strong></p>
-                <br>
-                <p>Regards,</p>
-                <h4>Hotel Management Team</h4>
-            </div>
-            `
-        );
-
-        return res.status(200).json(result);
-    } catch (error) {
-        console.log(error);
-        return res.status(500).json({
-            message: "Internal Server Error",
         });
     }
 };
@@ -728,9 +598,15 @@ exports.viewHotelDetails = async (req, res) => {
         }
 
         const hotel = await Hotelmodel.findById(id)
-            .populate("stateId", "stateName")
-            .populate("districtId", "districtName")
-            .populate("cityId", "cityName")
+            .populate({
+                path: "cityId",
+                populate: {
+                    path: "districtId",
+                    populate: {
+                        path: "stateId"
+                    }
+                }
+            })
             .populate("adminId", "adminname email");
 
         if (!hotel) {
@@ -844,8 +720,6 @@ exports.hotelRequest = async (req, res) => {
             hotelphone,
             hotelemail,
             email,
-            stateId,
-            districtId,
             cityId,
             hoteladdress,
             totalrooms,
@@ -859,8 +733,6 @@ exports.hotelRequest = async (req, res) => {
             !hotelname ||
             !hotelphone ||
             !targetEmail ||
-            !stateId ||
-            !districtId ||
             !cityId ||
             !hoteladdress ||
             !totalrooms ||
@@ -893,8 +765,6 @@ exports.hotelRequest = async (req, res) => {
                 hotelname,
                 hotelphone,
                 hotelemail: targetEmail,
-                stateId,
-                districtId,
                 cityId,
                 hoteladdress,
                 totalrooms,
@@ -971,8 +841,6 @@ exports.updateRequest = async (req, res) => {
             hotelname,
             hotelphone,
             hotelemail,
-            stateId,
-            districtId,
             cityId,
             hoteladdress,
             totalrooms,
@@ -980,13 +848,10 @@ exports.updateRequest = async (req, res) => {
             adminId,
         } = req.body;
 
-        // Build update object from explicit fields
         const updateData = {
             ...(hotelname && { hotelname }),
             ...(hotelphone && { hotelphone }),
             ...(hotelemail && { hotelemail }),
-            ...(stateId && { stateId }),
-            ...(districtId && { districtId }),
             ...(cityId && { cityId }),
             ...(hoteladdress && { hoteladdress }),
             ...(totalrooms && { totalrooms }),
@@ -994,7 +859,6 @@ exports.updateRequest = async (req, res) => {
             ...(adminId && { adminId }),
         };
 
-        // Upload new images to Cloudinary if provided
         if (req.files && req.files.images) {
             const filesToUpload = Array.isArray(req.files.images)
                 ? req.files.images
@@ -1021,7 +885,6 @@ exports.updateRequest = async (req, res) => {
     }
 };
 
-const { generatePdfTable } = require("../Utils/Pdf");
 
 exports.downloadHotelPdf = async (req, res) => {
     try {
@@ -1077,269 +940,277 @@ exports.downloadHotelPdf = async (req, res) => {
 };
 
 const parseBooleanValue = (val) => {
-  if (typeof val === "boolean") return val;
-  if (typeof val === "number") return val === 1;
-  if (typeof val === "string") {
-    const s = val.trim().toLowerCase();
-    return s === "yes" || s === "true" || s === "1" || s === "y";
-  }
-  return false;
+    if (typeof val === "boolean") return val;
+    if (typeof val === "number") return val === 1;
+    if (typeof val === "string") {
+        const s = val.trim().toLowerCase();
+        return s === "yes" || s === "true" || s === "1" || s === "y";
+    }
+    return false;
 };
 
 exports.importExcelData = async (req, res) => {
-  try {
-    const fileObj = req.files?.file || req.files?.excelFile;
-    if (!fileObj) {
-      return res.status(400).json({
-        success: false,
-        message: "Please upload an Excel file (.xlsx or .xls)",
-      });
-    }
+    try {
+        const fileObj = req.files?.file || req.files?.excelFile;
+        if (!fileObj) {
+            return res.status(400).json({
+                success: false,
+                message: "Please upload an Excel file (.xlsx or .xls)",
+            });
+        }
 
-    const fileName = (fileObj.name || "").toLowerCase();
-    if (!fileName.endsWith(".xlsx") && !fileName.endsWith(".xls")) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid file type! Only Excel files (.xlsx or .xls) are allowed.",
-      });
-    }
+        const fileName = (fileObj.name || "").toLowerCase();
+        if (!fileName.endsWith(".xlsx") && !fileName.endsWith(".xls")) {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid file type! Only Excel files (.xlsx or .xls) are allowed.",
+            });
+        }
 
-    const workbook = XLSX.read(fileObj.data, { type: "buffer" });
-    const sheetNames = workbook.SheetNames;
+        const workbook = XLSX.read(fileObj.data, { type: "buffer" });
+        const sheetNames = workbook.SheetNames;
 
-    let hotelsRows = [];
-    let roomsRows = [];
+        let hotelsRows = [];
+        let roomsRows = [];
 
-    sheetNames.forEach((sName) => {
-      const lower = sName.toLowerCase();
-      const sheetData = XLSX.utils.sheet_to_json(workbook.Sheets[sName]);
-      if (lower.includes("hotel")) {
-        hotelsRows = sheetData;
-      } else if (lower.includes("room")) {
-        roomsRows = sheetData;
-      }
-    });
-
-    if (hotelsRows.length === 0 && sheetNames.length > 0) {
-      hotelsRows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetNames[0]]);
-    }
-    if (roomsRows.length === 0 && sheetNames.length > 1) {
-      roomsRows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetNames[1]]);
-    }
-
-    const hotelIdMap = new Map();
-    let hotelsCreated = 0;
-    let hotelsUpdated = 0;
-    let roomsCreated = 0;
-    let roomsUpdated = 0;
-    const errors = [];
-
-    // Process Hotels Sheet
-    for (let i = 0; i < hotelsRows.length; i++) {
-      const row = hotelsRows[i];
-      const hotelname = (row["Hotel Name"] || row["hotelname"] || "").toString().trim();
-      const hotelemail = (row["Email"] || row["hotelemail"] || "").toString().trim();
-      const hotelphone = (row["Phone"] || row["hotelphone"] || "").toString().trim();
-      const hoteladdress = (row["Address"] || row["hoteladdress"] || "Address Not Specified").toString().trim();
-      const totalrooms = parseInt(row["Total Rooms"] || row["totalrooms"]) || 10;
-      const totalstaff = (row["Total Staff"] || row["totalstaff"] || "5").toString();
-      const description = (row["Description"] || row["description"] || "").toString();
-
-      const stateName = (row["State"] || row["stateName"] || "Gujarat").toString().trim();
-      const districtName = (row["District"] || row["districtName"] || "Surat").toString().trim();
-      const cityName = (row["City"] || row["cityName"] || "Surat").toString().trim();
-      const adminEmail = (row["Admin Email"] || row["adminEmail"] || "").toString().trim();
-
-      if (!hotelname) {
-        errors.push(`Hotel Row ${i + 1}: Missing Hotel Name`);
-        continue;
-      }
-
-      try {
-        let stateDoc = await StateModel.findOne({
-          stateName: { $regex: new RegExp(`^${stateName}$`, "i") },
+        sheetNames.forEach((sName) => {
+            const lower = sName.toLowerCase();
+            const sheetData = XLSX.utils.sheet_to_json(workbook.Sheets[sName]);
+            if (lower.includes("hotel")) {
+                hotelsRows = sheetData;
+            } else if (lower.includes("room")) {
+                roomsRows = sheetData;
+            }
         });
-        if (!stateDoc) {
-          stateDoc = await StateModel.create({ stateName, countryName: "India", status: true });
+
+        if (hotelsRows.length === 0 && sheetNames.length > 0) {
+            hotelsRows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetNames[0]]);
+        }
+        if (roomsRows.length === 0 && sheetNames.length > 1) {
+            roomsRows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetNames[1]]);
         }
 
-        let districtDoc = await DistrictModel.findOne({
-          districtName: { $regex: new RegExp(`^${districtName}$`, "i") },
-          stateId: stateDoc._id,
+        const hotelIdMap = new Map();
+        let hotelsCreated = 0;
+        let hotelsUpdated = 0;
+        let roomsCreated = 0;
+        let roomsUpdated = 0;
+        const errors = [];
+
+        for (let i = 0; i < hotelsRows.length; i++) {
+            const row = hotelsRows[i];
+            const hotelname = (row["Hotel Name"] || row["hotelname"] || "").toString().trim();
+            const hotelemail = (row["Email"] || row["hotelemail"] || "").toString().trim();
+            const hotelphone = (row["Phone"] || row["hotelphone"] || "").toString().trim();
+            const hoteladdress = (row["Address"] || row["hoteladdress"] || "Address Not Specified").toString().trim();
+            const totalrooms = parseInt(row["Total Rooms"] || row["totalrooms"]) || 10;
+            const totalstaff = (row["Total Staff"] || row["totalstaff"] || "5").toString();
+            const description = (row["Description"] || row["description"] || "").toString();
+
+            const stateName = (row["State"] || row["stateName"] || "Gujarat").toString().trim();
+            const districtName = (row["District"] || row["districtName"] || "Surat").toString().trim();
+            const cityName = (row["City"] || row["cityName"] || "Surat").toString().trim();
+            const adminEmail = (row["Admin Email"] || row["adminEmail"] || "").toString().trim();
+
+            if (!hotelname) {
+                errors.push(`Hotel Row ${i + 1}: Missing Hotel Name`);
+                continue;
+            }
+
+            try {
+                let stateDoc = await StateModel.findOne({
+                    stateName: { $regex: new RegExp(`^${stateName}$`, "i") },
+                });
+                if (!stateDoc) {
+                    stateDoc = await StateModel.create({ stateName, countryName: "India", status: true });
+                }
+
+                let districtDoc = await DistrictModel.findOne({
+                    districtName: { $regex: new RegExp(`^${districtName}$`, "i") },
+                    stateId: stateDoc._id,
+                });
+                if (!districtDoc) {
+                    districtDoc = await DistrictModel.create({ districtName, stateId: stateDoc._id, status: true });
+                }
+
+                let cityDoc = await CityModel.findOne({
+                    cityName: { $regex: new RegExp(`^${cityName}$`, "i") },
+                    districtId: districtDoc._id,
+                });
+                if (!cityDoc) {
+                    cityDoc = await CityModel.create({ cityName, districtId: districtDoc._id, status: true });
+                }
+
+                let adminDoc = null;
+                if (adminEmail) {
+                    adminDoc = await AdminModel.findOne({ email: { $regex: new RegExp(`^${adminEmail}$`, "i") } });
+                }
+                if (!adminDoc) {
+                    adminDoc = await AdminModel.findOne({ isActive: true });
+                }
+
+                let hotelDoc = null;
+                if (hotelemail) {
+                    hotelDoc = await Hotelmodel.findOne({ hotelemail: hotelemail.toLowerCase() });
+                }
+                if (!hotelDoc) {
+                    hotelDoc = await Hotelmodel.findOne({
+                        hotelname: { $regex: new RegExp(`^${hotelname}$`, "i") },
+                        cityId: cityDoc._id,
+                    });
+                }
+
+                const hotelData = {
+                    hotelname,
+                    hotelphone: Number(hotelphone) || 9876543210,
+                    hotelemail: hotelemail ? hotelemail.toLowerCase() : `hotel_${Date.now()}@guestshotel.com`,
+                    cityId: cityDoc._id,
+                    hoteladdress,
+                    totalrooms,
+                    totalstaff,
+                    description,
+                    status: "approved",
+                    isActive: true,
+                    emailVerified: true,
+                    adminId: adminDoc ? adminDoc._id : null,
+                };
+
+                if (hotelDoc) {
+                    hotelDoc = await Hotelmodel.findByIdAndUpdate(hotelDoc._id, hotelData, { new: true });
+                    hotelsUpdated++;
+                } else {
+                    hotelData.hotelRequestId = `HTL-${Math.floor(100000 + Math.random() * 900000)}`;
+                    hotelDoc = await Hotelmodel.create(hotelData);
+                    hotelsCreated++;
+                }
+
+                if (hotelDoc) {
+                    hotelIdMap.set(hotelname.toLowerCase(), hotelDoc._id);
+                    if (hotelemail) hotelIdMap.set(hotelemail.toLowerCase(), hotelDoc._id);
+                }
+            } catch (err) {
+                console.error(`Error processing hotel '${hotelname}':`, err);
+                errors.push(`Hotel '${hotelname}': ${err.message}`);
+            }
+        }
+
+        for (let j = 0; j < roomsRows.length; j++) {
+            const rRow = roomsRows[j];
+            const rHotelName = (rRow["Hotel Name"] || rRow["hotelname"] || "").toString().trim().toLowerCase();
+            const rHotelEmail = (rRow["Hotel Email"] || rRow["hotelemail"] || "").toString().trim().toLowerCase();
+            const roomNumber = parseInt(rRow["Room Number"] || rRow["roomNumber"]);
+            const roomTypeRaw = (rRow["Room Type"] || rRow["roomType"] || "Single").toString().trim();
+            const pricePerNight = parseFloat(rRow["Price Per Night"] || rRow["pricePerNight"] || rRow["price"]) || 2000;
+            const floor = parseInt(rRow["Floor"] || rRow["floor"]) || 1;
+            const capacity = parseInt(rRow["Capacity"] || rRow["capacity"]) || 2;
+
+            if (!roomNumber) {
+                errors.push(`Room Row ${j + 1}: Missing Room Number`);
+                continue;
+            }
+
+            let targetHotelId = hotelIdMap.get(rHotelEmail) || hotelIdMap.get(rHotelName);
+
+            if (!targetHotelId) {
+                let hDoc = null;
+                if (rHotelEmail) hDoc = await Hotelmodel.findOne({ hotelemail: rHotelEmail });
+                if (!hDoc && rHotelName) hDoc = await Hotelmodel.findOne({ hotelname: { $regex: new RegExp(`^${rHotelName}$`, "i") } });
+                if (hDoc) targetHotelId = hDoc._id;
+            }
+
+            if (!targetHotelId) {
+                errors.push(`Room #${roomNumber}: Target Hotel '${rHotelName || rHotelEmail}' not found`);
+                continue;
+            }
+
+            const validTypes = ["Single", "Double", "Twin", "Deluxe", "Suite", "Family"];
+            const matchedType = validTypes.find((t) => t.toLowerCase() === roomTypeRaw.toLowerCase()) || "Single";
+
+            const beds = [];
+            if (parseBooleanValue(rRow["King Size Bed"] ?? rRow["kingSizeBed"])) beds.push("king");
+            if (parseBooleanValue(rRow["Queen Size Bed"] ?? rRow["queenSizeBed"])) beds.push("queen");
+            if (parseBooleanValue(rRow["Single Bed"] ?? rRow["singleBed"])) beds.push("single");
+            if (parseBooleanValue(rRow["Double Bed"] ?? rRow["doubleBed"])) beds.push("double");
+
+            const amenityMap = [
+                { key: "ac", col: ["AC", "ac"] },
+                { key: "cooler", col: ["Cooler", "cooler"] },
+                { key: "attachedBathroom", col: ["Attached Bathroom", "attachedBathroom"] },
+                { key: "bathtub", col: ["Bathtub", "bathtub"] },
+                { key: "geyser", col: ["Geyser", "geyser"] },
+                { key: "tv", col: ["TV", "tv"] },
+                { key: "wifi", col: ["WiFi", "wifi"] },
+                { key: "telephone", col: ["Telephone", "telephone"] },
+                { key: "miniFridge", col: ["Mini Fridge", "miniFridge"] },
+                { key: "microwave", col: ["Microwave", "microwave"] },
+                { key: "electricKettle", col: ["Electric Kettle", "electricKettle"] },
+                { key: "sofa", col: ["Sofa", "sofa"] },
+                { key: "diningTable", col: ["Dining Table", "diningTable"] },
+                { key: "wardrobe", col: ["Wardrobe", "wardrobe"] },
+                { key: "balcony", col: ["Balcony", "balcony"] },
+                { key: "locker", col: ["Locker", "locker"] },
+                { key: "smokeDetector", col: ["Smoke Detector", "smokeDetector"] },
+                { key: "fireExtinguisher", col: ["Fire Extinguisher", "fireExtinguisher"] },
+                { key: "roomService", col: ["Room Service", "roomService"] },
+                { key: "laundryService", col: ["Laundry Service", "laundryService"] },
+                { key: "housekeeping", col: ["Housekeeping", "housekeeping"] },
+            ];
+
+            const amenities = [];
+            amenityMap.forEach(({ key, col }) => {
+                if (parseBooleanValue(rRow[col[0]] ?? rRow[col[1]])) {
+                    amenities.push(key);
+                }
+            });
+
+            const roomData = {
+                hotelId: targetHotelId,
+                roomNumber,
+                floor,
+                roomType: matchedType,
+                pricePerNight,
+                capacity,
+
+                beds,
+                amenities,
+
+                isAvailable: true,
+                isActive: true,
+            };
+
+            try {
+                let existingRoom = await RoomDetails.findOne({ hotelId: targetHotelId, roomNumber });
+                if (existingRoom) {
+                    await RoomDetails.findByIdAndUpdate(existingRoom._id, roomData, { new: true });
+                    roomsUpdated++;
+                } else {
+                    await RoomDetails.create(roomData);
+                    roomsCreated++;
+                }
+            } catch (rErr) {
+                console.error(`Error importing room #${roomNumber}:`, rErr);
+                errors.push(`Room #${roomNumber}: ${rErr.message}`);
+            }
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: `Excel bulk import completed successfully! ${hotelsCreated} hotels created, ${roomsCreated} rooms created.`,
+            summary: {
+                totalHotelsParsed: hotelsRows.length,
+                hotelsCreated,
+                hotelsUpdated,
+                totalRoomsParsed: roomsRows.length,
+                roomsCreated,
+                roomsUpdated,
+                errors,
+            },
         });
-        if (!districtDoc) {
-          districtDoc = await DistrictModel.create({ districtName, stateId: stateDoc._id, status: true });
-        }
-
-        let cityDoc = await CityModel.findOne({
-          cityName: { $regex: new RegExp(`^${cityName}$`, "i") },
-          districtId: districtDoc._id,
+    } catch (error) {
+        console.error("Error in importExcelData:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Bulk import failed: " + error.message,
         });
-        if (!cityDoc) {
-          cityDoc = await CityModel.create({ cityName, districtId: districtDoc._id, status: true });
-        }
-
-        let adminDoc = null;
-        if (adminEmail) {
-          adminDoc = await AdminModel.findOne({ email: { $regex: new RegExp(`^${adminEmail}$`, "i") } });
-        }
-        if (!adminDoc) {
-          adminDoc = await AdminModel.findOne({ isActive: true });
-        }
-
-        let hotelDoc = null;
-        if (hotelemail) {
-          hotelDoc = await Hotelmodel.findOne({ hotelemail: hotelemail.toLowerCase() });
-        }
-        if (!hotelDoc) {
-          hotelDoc = await Hotelmodel.findOne({
-            hotelname: { $regex: new RegExp(`^${hotelname}$`, "i") },
-            cityId: cityDoc._id,
-          });
-        }
-
-        const hotelData = {
-          hotelname,
-          hotelphone: Number(hotelphone) || 9876543210,
-          hotelemail: hotelemail ? hotelemail.toLowerCase() : `hotel_${Date.now()}@guestshotel.com`,
-          stateId: stateDoc._id,
-          districtId: districtDoc._id,
-          cityId: cityDoc._id,
-          hoteladdress,
-          totalrooms,
-          totalstaff,
-          description,
-          status: "approved",
-          isActive: true,
-          emailVerified: true,
-          adminId: adminDoc ? adminDoc._id : null,
-        };
-
-        if (hotelDoc) {
-          hotelDoc = await Hotelmodel.findByIdAndUpdate(hotelDoc._id, hotelData, { new: true });
-          hotelsUpdated++;
-        } else {
-          hotelData.hotelRequestId = `HTL-${Math.floor(100000 + Math.random() * 900000)}`;
-          hotelDoc = await Hotelmodel.create(hotelData);
-          hotelsCreated++;
-        }
-
-        if (hotelDoc) {
-          hotelIdMap.set(hotelname.toLowerCase(), hotelDoc._id);
-          if (hotelemail) hotelIdMap.set(hotelemail.toLowerCase(), hotelDoc._id);
-        }
-      } catch (err) {
-        console.error(`Error processing hotel '${hotelname}':`, err);
-        errors.push(`Hotel '${hotelname}': ${err.message}`);
-      }
     }
-
-    // Process Rooms Sheet
-    for (let j = 0; j < roomsRows.length; j++) {
-      const rRow = roomsRows[j];
-      const rHotelName = (rRow["Hotel Name"] || rRow["hotelname"] || "").toString().trim().toLowerCase();
-      const rHotelEmail = (rRow["Hotel Email"] || rRow["hotelemail"] || "").toString().trim().toLowerCase();
-      const roomNumber = parseInt(rRow["Room Number"] || rRow["roomNumber"]);
-      const roomTypeRaw = (rRow["Room Type"] || rRow["roomType"] || "Single").toString().trim();
-      const pricePerNight = parseFloat(rRow["Price Per Night"] || rRow["pricePerNight"] || rRow["price"]) || 2000;
-      const floor = parseInt(rRow["Floor"] || rRow["floor"]) || 1;
-      const capacity = parseInt(rRow["Capacity"] || rRow["capacity"]) || 2;
-
-      if (!roomNumber) {
-        errors.push(`Room Row ${j + 1}: Missing Room Number`);
-        continue;
-      }
-
-      let targetHotelId = hotelIdMap.get(rHotelEmail) || hotelIdMap.get(rHotelName);
-
-      if (!targetHotelId) {
-        let hDoc = null;
-        if (rHotelEmail) hDoc = await Hotelmodel.findOne({ hotelemail: rHotelEmail });
-        if (!hDoc && rHotelName) hDoc = await Hotelmodel.findOne({ hotelname: { $regex: new RegExp(`^${rHotelName}$`, "i") } });
-        if (hDoc) targetHotelId = hDoc._id;
-      }
-
-      if (!targetHotelId) {
-        errors.push(`Room #${roomNumber}: Target Hotel '${rHotelName || rHotelEmail}' not found`);
-        continue;
-      }
-
-      const validTypes = ["Single", "Double", "Twin", "Deluxe", "Suite", "Family"];
-      const matchedType = validTypes.find((t) => t.toLowerCase() === roomTypeRaw.toLowerCase()) || "Single";
-
-      const roomData = {
-        hotelId: targetHotelId,
-        roomNumber,
-        floor,
-        roomType: matchedType,
-        pricePerNight,
-        capacity,
-
-        kingSizeBed: parseBooleanValue(rRow["King Size Bed"] ?? rRow["kingSizeBed"]),
-        queenSizeBed: parseBooleanValue(rRow["Queen Size Bed"] ?? rRow["queenSizeBed"]),
-        singleBed: parseBooleanValue(rRow["Single Bed"] ?? rRow["singleBed"]),
-        doubleBed: parseBooleanValue(rRow["Double Bed"] ?? rRow["doubleBed"]),
-
-        ac: parseBooleanValue(rRow["AC"] ?? rRow["ac"]),
-        cooler: parseBooleanValue(rRow["Cooler"] ?? rRow["cooler"]),
-        attachedBathroom: parseBooleanValue(rRow["Attached Bathroom"] ?? rRow["attachedBathroom"]),
-        bathtub: parseBooleanValue(rRow["Bathtub"] ?? rRow["bathtub"]),
-        geyser: parseBooleanValue(rRow["Geyser"] ?? rRow["geyser"]),
-        tv: parseBooleanValue(rRow["TV"] ?? rRow["tv"]),
-        wifi: parseBooleanValue(rRow["WiFi"] ?? rRow["wifi"]),
-        telephone: parseBooleanValue(rRow["Telephone"] ?? rRow["telephone"]),
-        miniFridge: parseBooleanValue(rRow["Mini Fridge"] ?? rRow["miniFridge"]),
-        microwave: parseBooleanValue(rRow["Microwave"] ?? rRow["microwave"]),
-        electricKettle: parseBooleanValue(rRow["Electric Kettle"] ?? rRow["electricKettle"]),
-        sofa: parseBooleanValue(rRow["Sofa"] ?? rRow["sofa"]),
-        diningTable: parseBooleanValue(rRow["Dining Table"] ?? rRow["diningTable"]),
-        wardrobe: parseBooleanValue(rRow["Wardrobe"] ?? rRow["wardrobe"]),
-        balcony: parseBooleanValue(rRow["Balcony"] ?? rRow["balcony"]),
-        locker: parseBooleanValue(rRow["Locker"] ?? rRow["locker"]),
-        smokeDetector: parseBooleanValue(rRow["Smoke Detector"] ?? rRow["smokeDetector"]),
-        fireExtinguisher: parseBooleanValue(rRow["Fire Extinguisher"] ?? rRow["fireExtinguisher"]),
-
-        roomService: parseBooleanValue(rRow["Room Service"] ?? rRow["roomService"]),
-        laundryService: parseBooleanValue(rRow["Laundry Service"] ?? rRow["laundryService"]),
-        housekeeping: parseBooleanValue(rRow["Housekeeping"] ?? rRow["housekeeping"]),
-
-        isAvailable: true,
-        isActive: true,
-      };
-
-      try {
-        let existingRoom = await RoomDetails.findOne({ hotelId: targetHotelId, roomNumber });
-        if (existingRoom) {
-          await RoomDetails.findByIdAndUpdate(existingRoom._id, roomData, { new: true });
-          roomsUpdated++;
-        } else {
-          await RoomDetails.create(roomData);
-          roomsCreated++;
-        }
-      } catch (rErr) {
-        console.error(`Error importing room #${roomNumber}:`, rErr);
-        errors.push(`Room #${roomNumber}: ${rErr.message}`);
-      }
-    }
-
-    return res.status(200).json({
-      success: true,
-      message: `Excel bulk import completed successfully! ${hotelsCreated} hotels created, ${roomsCreated} rooms created.`,
-      summary: {
-        totalHotelsParsed: hotelsRows.length,
-        hotelsCreated,
-        hotelsUpdated,
-        totalRoomsParsed: roomsRows.length,
-        roomsCreated,
-        roomsUpdated,
-        errors,
-      },
-    });
-  } catch (error) {
-    console.error("Error in importExcelData:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Bulk import failed: " + error.message,
-    });
-  }
 };

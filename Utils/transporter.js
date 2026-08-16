@@ -15,7 +15,7 @@ exports.info = async (to, subject, html) => {
       },
       body: JSON.stringify({
         sender: {
-          name: "Application",
+          name: "THE Guest's",
           email: process.env.EMAIL_USER
         },
         to: [
