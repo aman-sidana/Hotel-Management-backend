@@ -74,7 +74,6 @@ exports.superAdminAddHotel = async (req, res) => {
             isActive: true
         });
 
-
         await UserModel.create({
             name: hotelname,
             phone: hotelphone,
@@ -884,7 +883,6 @@ exports.updateRequest = async (req, res) => {
         return res.status(500).json({ message: "Internal Server Error" });
     }
 };
-
 
 exports.downloadHotelPdf = async (req, res) => {
     try {

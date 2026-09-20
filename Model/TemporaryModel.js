@@ -19,7 +19,7 @@ const TemporarySchema = new mongoose.Schema(
     createdAt: {
       type: Date,
       default: Date.now,
-      expires: 600, // 600 seconds = 10 minutes (MongoDB TTL Live Indexing)
+      expires: 600,
     },
   },
   {

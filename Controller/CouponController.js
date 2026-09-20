@@ -252,7 +252,6 @@ exports.couponAdd = async (req, res) => {
     }
 };
 
-
 exports.downloadCouponPdf = async (req, res) => {
     try {
         const { search = "", sort = "codeAsc", status } = req.query;

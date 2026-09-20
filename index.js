@@ -7,7 +7,6 @@ const { automaticCanceling } = require("./Utils/Cron-job");
 
 const fileUpload = require("express-fileupload");
 
-
 const app = express();
 
 mongoose
@@ -55,7 +54,6 @@ app.use('/temporary', TemporaryRoute)
 
 const ratingRoutes = require("./Router/RatingRoute");
 app.use("/rating", ratingRoutes);
-
 
 app.listen(process.env.PORT, () => {
   console.log(`Server is Running on Port : ${process.env.PORT}`);

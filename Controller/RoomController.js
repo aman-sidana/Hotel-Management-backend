@@ -1,8 +1,6 @@
 const RoomModel = require("../Model/RoomModel");
 const { uploadImage } = require("../Utils/Cloudinary");
 const { generatePdfTable } = require("../Utils/Pdf");
-
-// Add Room
 exports.addRoom = async (req, res) => {
   try {
     const { hotelId, roomNumber, floor, roomType, pricePerNight, capacity, beds, amenities } = req.body;
@@ -27,7 +25,6 @@ exports.addRoom = async (req, res) => {
       imageUrls = uploadResults.map((result) => result.secure_url);
     }
 
-    // Parse array if sent as JSON string from FormData
     const parsedBeds = typeof beds === "string" ? JSON.parse(beds) : beds || [];
     const parsedAmenities = typeof amenities === "string" ? JSON.parse(amenities) : amenities || [];
 
@@ -54,8 +51,6 @@ exports.addRoom = async (req, res) => {
     return res.status(500).json({ message: "Internal Server Error" });
   }
 };
-
-// Admin Add Room
 exports.adminAddRoom = async (req, res) => {
   try {
     const { hotelId, roomNumber, floor, roomType, pricePerNight, capacity, beds, amenities } = req.body;
@@ -106,8 +101,6 @@ exports.adminAddRoom = async (req, res) => {
     return res.status(500).json({ message: "Internal Server Error" });
   }
 };
-
-// Get All Rooms (Admin / General)
 exports.getAllRooms = async (req, res) => {
   try {
     const rooms = await RoomModel.find().populate(
@@ -120,8 +113,6 @@ exports.getAllRooms = async (req, res) => {
     return res.status(500).json({ message: "Internal Server Error" });
   }
 };
-
-// Get All User Rooms with Filter & Search & Pagination
 exports.getAllUserRooms = async (req, res) => {
   try {
     const { hotelId, search = "", sort = "default", page = 1, limit = 6, beds, amenities } = req.query;
@@ -185,8 +176,6 @@ exports.getAllUserRooms = async (req, res) => {
     return res.status(500).json({ success: false, message: "Internal Server Error" });
   }
 };
-
-// Update Room Details
 exports.updateRoom = async (req, res) => {
   try {
     const { id } = req.query;
@@ -223,8 +212,6 @@ exports.updateRoom = async (req, res) => {
     return res.status(500).json({ message: "Internal Server Error" });
   }
 };
-
-// Soft Delete Room
 exports.softDeleteRoom = async (req, res) => {
   try {
     const { id } = req.query;
@@ -236,8 +223,6 @@ exports.softDeleteRoom = async (req, res) => {
     return res.status(500).json({ message: "Internal Server Error" });
   }
 };
-
-// Restore Room
 exports.restoreRoom = async (req, res) => {
   try {
     const { id } = req.query;
@@ -249,8 +234,6 @@ exports.restoreRoom = async (req, res) => {
     return res.status(500).json({ message: "Internal Server Error" });
   }
 };
-
-// Permanently Delete Room
 exports.deleteRoom = async (req, res) => {
   try {
     const { id } = req.query;
@@ -262,8 +245,6 @@ exports.deleteRoom = async (req, res) => {
     return res.status(500).json({ message: "Internal Server Error" });
   }
 };
-
-// View Details of Single Room
 exports.viewdetails = async (req, res) => {
   try {
     const { id } = req.query;
@@ -282,8 +263,6 @@ exports.viewdetails = async (req, res) => {
     return res.status(500).json({ message: "Internal Server Error" });
   }
 };
-
-// Download Room Inventory Report PDF
 exports.downloadRoomPdf = async (req, res) => {
   try {
     const { hotelId, search = "", status } = req.query;

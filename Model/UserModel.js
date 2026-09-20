@@ -31,7 +31,7 @@ const UserSchema = new mongoose.Schema({
     expireTime: {
         type: Number
     }
-    
+
 },
     {
         timestamps: true,

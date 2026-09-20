@@ -21,7 +21,6 @@ module.exports = async (req, res, next) => {
 
     const decode = jwt.verify(token, process.env.SECRETKEY);
 
-
     const { email } = decode
 
     const userdetail = await UserModel.findOne({ email });

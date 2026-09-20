@@ -7,7 +7,6 @@ const { uploadImage } = require("../Utils/Cloudinary");
 const bcrypt = require("bcrypt")
 const { generatePdfTable } = require("../Utils/Pdf");
 
-
 exports.superAdminAdd = async (req, res) => {
     try {
         const {
@@ -45,7 +44,6 @@ exports.superAdminAdd = async (req, res) => {
                 message: "User already exists",
             });
         }
-
 
         const randomPassword = uuidv4().substring(0, 10);
         const hashedPassword = await bcrypt.hash(randomPassword, 10);
@@ -128,14 +126,7 @@ exports.superAdminAdd = async (req, res) => {
 
 exports.allADmin = async (req, res) => {
     try {
-        const {
-            search = "",
-            sort = "nameAsc",
-            status,
-            page,
-            limit
-        } = req.query;
-
+        const { search = "", sort = "nameAsc", status, page, limit } = req.query;
         let filter = {};
 
         if (status === "approved" || status === "pending" || status === "rejected") {
@@ -206,11 +197,9 @@ exports.allADmin = async (req, res) => {
     }
 };
 
-
 exports.approveAdminRequest = async (req, res) => {
     try {
         const { id } = req.query;
-        console.log("id", id)
         if (!id) {
             return res.status(400).json({
                 message: "Admin ID not found"
@@ -220,7 +209,6 @@ exports.approveAdminRequest = async (req, res) => {
         const result = await AdminModel.findByIdAndUpdate(
             id, { status: "approved" }, { new: true }
         );
-        console.log("result", result)
 
         if (!result) {
             return res.status(404).json({
@@ -229,7 +217,6 @@ exports.approveAdminRequest = async (req, res) => {
         }
 
         const existsUser = await UserModel.findOne({ email: result.email });
-        console.log(existsUser)
         if (existsUser) {
             return res.status(400).json({
                 message: "User already exists"
@@ -237,7 +224,6 @@ exports.approveAdminRequest = async (req, res) => {
         }
 
         const randomPassword = uuidv4().substring(0, 10);
-        console.log(randomPassword)
 
         const AdminAdd = await UserModel.create({
             name: result.adminname,
@@ -302,7 +288,7 @@ exports.rejectRequest = async (req, res) => {
             id,
             {
                 status: "rejected",
-                description: description || "No reason provided."
+                description: description
             },
             { new: true }
         );
@@ -407,19 +393,16 @@ exports.restoreAdmin = async (req, res) => {
                 message: "Admin ID is required",
             });
         }
-
         const Admin = await AdminModel.findByIdAndUpdate(
             id,
             { isActive: true },
             { new: true }
         );
-
         if (!Admin) {
             return res.status(404).json({
                 message: "Admin not found",
             });
         }
-
         return res.status(200).json(Admin);
     } catch (error) {
         console.log(error);
@@ -432,7 +415,6 @@ exports.restoreAdmin = async (req, res) => {
 exports.viewAdminDetails = async (req, res) => {
     try {
         const { id } = req.query;
-
         if (!id) {
             return res.status(400).json({
                 message: "Admin ID is required",
@@ -463,7 +445,6 @@ exports.viewAdminDetails = async (req, res) => {
 exports.sendAdminOTP = async (req, res) => {
     try {
         const { email } = req.body;
-        console.log(email)
         if (!email) {
             return res.status(400).json({
                 message: "Email is required"
@@ -471,16 +452,13 @@ exports.sendAdminOTP = async (req, res) => {
         }
 
         const existing = await AdminModel.findOne({ email });
-
         if (existing && existing.emailVerified) {
             return res.status(400).json({
                 message: "Email already verified"
             });
         }
         const generatedOTP = otp();
-        console.log(generatedOTP)
         let admin = await AdminModel.findOne({ email });
-        console.log(admin)
 
         if (!admin) {
             admin = new AdminModel({ email });
@@ -772,5 +750,4 @@ exports.downloadAdminPdf = async (req, res) => {
         res.status(500).json({ message: "Unable to generate PDF" });
     }
 };
-
 

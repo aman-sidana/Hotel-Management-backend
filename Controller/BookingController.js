@@ -19,7 +19,20 @@ exports.createBooking = async (req, res) => {
     if (!room || !room.isAvailable) {
       return res.status(400).json({
         success: false,
-        message: !room ? "Room not found." : "Room is already booked.",
+        message: !room ? "Room not found." : "Room is currently unavailable.",
+      });
+    }
+    const overlappingBookings = await Booking.find({
+      roomId,
+      status: { $nin: ["cancelled", "rejected", "checkOut"] },
+      startDate: { $lt: new Date(endDate) },
+      endDate: { $gt: new Date(startDate) }
+    });
+
+    if (overlappingBookings.length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Room is already booked for the selected dates.",
       });
     }
 

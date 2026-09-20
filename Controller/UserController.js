@@ -3,7 +3,6 @@ const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const { info, otp } = require("../Utils/transporter");
 
-
 exports.SignUp = async (req, res) => {
     try {
         const { name, email, password, phone, role } = req.body;
