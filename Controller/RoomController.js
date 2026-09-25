@@ -103,10 +103,12 @@ exports.adminAddRoom = async (req, res) => {
 };
 exports.getAllRooms = async (req, res) => {
   try {
-    const rooms = await RoomModel.find().populate(
-      "hotelId",
-      "hotelname hotelemail hotelphone ownername"
-    );
+    const rooms = await RoomModel.find()
+      .sort({ roomNumber: 1 })
+      .populate(
+        "hotelId",
+        "hotelname hotelemail hotelphone ownername"
+      );
     return res.status(200).json(rooms);
   } catch (error) {
     console.error("Get All Rooms Error:", error);
@@ -147,7 +149,7 @@ exports.getAllUserRooms = async (req, res) => {
     }
 
     const sortOptions = {
-      default: { createdAt: -1 },
+      default: { roomNumber: 1 },
       priceLowHigh: { pricePerNight: 1 },
       priceHighLow: { pricePerNight: -1 },
       roomAsc: { roomNumber: 1 },
@@ -271,7 +273,7 @@ exports.downloadRoomPdf = async (req, res) => {
     if (status === "available") filter.isAvailable = true;
     else if (status === "booked") filter.isAvailable = false;
 
-    let rooms = await RoomModel.find(filter).populate("hotelId", "hotelname");
+    let rooms = await RoomModel.find(filter).sort({ roomNumber: 1 }).populate("hotelId", "hotelname");
 
     if (search) {
       rooms = rooms.filter((r) =>

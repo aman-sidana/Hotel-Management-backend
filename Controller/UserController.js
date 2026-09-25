@@ -30,6 +30,7 @@ exports.SignUp = async (req, res) => {
             phone,
             role,
         });
+        
         await info(
             email,
             "Welcome to Hotel Management System",
