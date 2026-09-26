@@ -3,15 +3,14 @@ const UserModel = require("../Model/UserModel");
 
 module.exports = async (req, res, next) => {
   try {
-    const authHeader = req.headers.authorization;
+    let token = null;
+    const authHeader = req.headers.authorization || req.headers.Authorization;
 
-    if (!authHeader) {
-      return res.status(401).json({
-        message: "Authorization header not found",
-      });
+    if (authHeader) {
+      token = authHeader.startsWith("Bearer ") ? authHeader.split(" ")[1] : authHeader;
+    } else if (req.query && req.query.token) {
+      token = req.query.token;
     }
-
-    const token = authHeader.split(" ")[1];
 
     if (!token) {
       return res.status(401).json({
